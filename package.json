@@ -1,0 +1,16 @@
+{
+  "name": "unrsschiquito",
+  "version": "1.0.0",
+  "description": "Un lector RSS chiquito, para correr en tu propia máquina. Feeds, carpetas y leído/no leído. Nada más.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22.5"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning server.js",
+    "prune": "node --disable-warning=ExperimentalWarning server.js prune 90"
+  },
+  "comment": "Sin dependencias a propósito: sqlite viene adentro de Node 22.5+. En Node 18 o 20, 'npm i better-sqlite3' hace de respaldo.",
+  "keywords": ["rss", "atom", "feed-reader", "self-hosted", "sqlite"]
+}

@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="es" data-theme="light" data-gray="off">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="Un lector RSS chiquito.">
+<title>unrsschiquito</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<script>
+  try {
+    const d = document.documentElement.dataset;
+    d.theme = localStorage.getItem('unrsschiquito.theme') || 'light';
+    d.gray = localStorage.getItem('unrsschiquito.gray') || 'off';
+  } catch {}
+</script>
+<link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+
+<div id="app" class="screen">
+
+  <aside id="sidebar">
+    <div class="side-head">
+      <h1 class="wordmark">un<span>rss</span>chiquito</h1>
+    </div>
+
+    <nav id="nav"></nav>
+
+    <div class="side-foot">
+      <button class="btn icon" id="theme-toggle" aria-label="Cambiar tema" title="Cambiar tema"></button>
+      <button class="btn icon" id="gray-toggle" aria-label="Modo sin color" title="Modo sin color"></button>
+      <a class="btn" id="export-opml" href="/api/opml" title="Descargar tus suscripciones en OPML">Exportar</a>
+    </div>
+  </aside>
+
+  <main id="main">
+    <header id="topbar">
+      <div class="head-row">
+        <button class="btn" id="menu-toggle">Menú</button>
+        <h2 id="view-title">Sin leer</h2>
+      </div>
+      <div class="head-row">
+        <button class="btn" id="add-feed">Agregar feed</button>
+        <button class="btn" id="refresh-view">Actualizar</button>
+      </div>
+    </header>
+    <div id="list"></div>
+
+    <header id="reader-bar" hidden>
+      <button class="btn" id="back">Volver</button>
+      <button class="btn" id="reader-refresh" title="Vuelve a bajar el feed y repinta esta noticia">Actualizar</button>
+    </header>
+    <div id="reader" hidden></div>
+  </main>
+</div>
+
+<div id="modal" hidden></div>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script type="module" src="./app.js"></script>
+</body>
+</html>
