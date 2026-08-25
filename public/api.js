@@ -33,4 +33,6 @@ export const api = {
   discover: (url) => request('POST', '/discover', { url }),
 
   refresh: (ids) => request('POST', '/refresh', { ids }),
+
+  importOpml: (xml) => request('POST', '/opml', { xml }),
 };

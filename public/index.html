@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es" data-theme="light" data-gray="off">
+<html lang="es">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -7,13 +7,7 @@
 <meta name="description" content="Un lector RSS chiquito.">
 <title>unrsschiquito</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-<script>
-  try {
-    const d = document.documentElement.dataset;
-    d.theme = localStorage.getItem('unrsschiquito.theme') || 'light';
-    d.gray = localStorage.getItem('unrsschiquito.gray') || 'off';
-  } catch {}
-</script>
+<script src="./boot.js"></script>
 <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
@@ -30,7 +24,21 @@
     <div class="side-foot">
       <button class="btn icon" id="theme-toggle" aria-label="Cambiar tema" title="Cambiar tema"></button>
       <button class="btn icon" id="gray-toggle" aria-label="Modo sin color" title="Modo sin color"></button>
-      <a class="btn" id="export-opml" href="/api/opml" title="Descargar tus suscripciones en OPML">Exportar</a>
+
+      <div class="more-menu" id="more-menu">
+        <button class="btn" id="more-toggle" aria-haspopup="menu" aria-expanded="false" title="Más cosas">Más</button>
+        <ul class="more-list" id="more-list" role="menu" hidden>
+          <li role="none">
+            <button class="btn" role="menuitem" data-act="export"
+              title="Descargar tus suscripciones en OPML">Exportar OPML</button>
+          </li>
+          <li role="none">
+            <button class="btn" role="menuitem" data-act="import"
+              title="Traer suscripciones desde un archivo OPML">Importar OPML</button>
+          </li>
+        </ul>
+      </div>
+      <input type="file" id="opml-file" accept=".opml,.xml,text/xml,application/xml,text/x-opml" hidden>
     </div>
   </aside>
 

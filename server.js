@@ -38,6 +38,8 @@ const EXTRA_HOSTS = (process.env.UNRSS_ALLOWED_HOSTS || '')
   .split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
 
 const PAGE_MAX = 200;
+const BODY_MAX = 200000;
+const OPML_MAX = 4000000;
 
 /* Seguridá */
 
@@ -71,7 +73,6 @@ function assertBindIsSafe() {
 function safeEqual(a, b) {
   const x = Buffer.from(String(a));
   const y = Buffer.from(String(b));
-  // timingSafeEqual explota si los largos no coinciden, y el largo se filtra igual.
   return x.length === y.length && timingSafeEqual(x, y);
 }
 
@@ -94,7 +95,6 @@ function hostOk(req) {
   return isLoopback(name) || EXTRA_HOSTS.includes(name) || EXTRA_HOSTS.includes(raw.toLowerCase());
 }
 
-/** Las escrituras solo se aceptan desde la propia página, nunca de otro sitio. */
 function originOk(req) {
   const origin = req.headers.origin;
   if (!origin) return true;   // fetch same-origin de GET no manda Origin
@@ -137,11 +137,11 @@ function send(res, status, body, headers = {}) {
 const json = (res, status, data) =>
   send(res, status, JSON.stringify(data), { 'content-type': 'application/json; charset=utf-8' });
 
-async function readJsonBody(req) {
+async function readJsonBody(req, max = BODY_MAX) {
   let raw = '';
   for await (const chunk of req) {
     raw += chunk;
-    if (raw.length > 200000) throw new Error('Body demasiado grande');
+    if (raw.length > max) throw new Error('Body demasiado grande');
   }
   if (!raw) return {};
   try {
@@ -165,7 +165,6 @@ const MIME = {
 async function serveStatic(res, pathname) {
   const rel = normalize(decodeURIComponent(pathname === '/' ? '/index.html' : pathname));
   const file = resolve(PUBLIC, '.' + (rel.startsWith('/') ? rel : '/' + rel));
-  // Ni ../ ni symlinks para afuera: todo tiene que caer dentro de public/.
   if (!file.startsWith(PUBLIC)) return send(res, 403, 'No');
 
   try {
@@ -193,13 +192,43 @@ const snapshot = (db) => ({
   counts: db.unreadCounts(),
 });
 
+function stageOpml(db, xml) {
+  const entries = fromOpml(xml);
+  if (!entries.length) throw new Error('No encontré suscripciones en ese OPML');
+
+  const folders = new Map(db.listFolders().map((f) => [f.name.toLowerCase(), f.id]));
+  const existing = new Set(db.listFeeds().map((f) => f.url));
+  const added = [];
+  const failed = [];
+
+  for (const entry of entries) {
+    if (existing.has(entry.url)) continue;
+    existing.add(entry.url);
+    let folderId = null;
+    if (entry.folder) {
+      const key = entry.folder.toLowerCase();
+      if (!folders.has(key)) folders.set(key, db.createFolder(entry.folder).id);
+      folderId = folders.get(key);
+    }
+    try {
+      added.push(db.createFeed({ url: entry.url, title: entry.title, folderId }));
+    } catch (err) {
+      failed.push({ url: entry.url, error: err.message });
+    }
+  }
+
+  return { entries, added, failed };
+}
+
 async function api(db, req, res, url) {
   const { pathname, searchParams } = url;
   const method = req.method;
   const seg = pathname.split('/').filter(Boolean);   // ['api', 'items', id, ...]
   const [, section, id, sub] = seg;
 
-  const body = ['POST', 'PATCH', 'PUT', 'DELETE'].includes(method) ? await readJsonBody(req) : {};
+  const body = ['POST', 'PATCH', 'PUT', 'DELETE'].includes(method)
+    ? await readJsonBody(req, section === 'opml' ? OPML_MAX : BODY_MAX)
+    : {};
 
   if (section === 'state' && method === 'GET') {
     return json(res, 200, snapshot(db));
@@ -300,6 +329,26 @@ async function api(db, req, res, url) {
     });
   }
 
+  if (section === 'opml' && method === 'POST') {
+    const xml = String(body.xml || '').trim();
+    if (!xml) return json(res, 400, { error: 'Falta el archivo' });
+
+    let staged;
+    try {
+      staged = stageOpml(db, xml);
+    } catch (err) {
+      return json(res, 400, { error: err.message || 'No pude leer ese OPML' });
+    }
+
+    const results = await refreshFeeds(db, staged.added);
+    return json(res, 200, {
+      found: staged.entries.length,
+      imported: staged.added.length,
+      failed: staged.failed.length + results.filter((r) => r.error).length,
+      ...snapshot(db),
+    });
+  }
+
   return json(res, 404, { error: 'Ruta desconocida' });
 }
 
@@ -378,27 +427,8 @@ async function cli(cmd, args) {
 
   if (cmd === 'import') {
     if (!args[0]) throw new Error('Uso: node server.js import archivo.opml');
-    const entries = fromOpml(await readFile(args[0], 'utf8'));
-    if (!entries.length) throw new Error('No encontré suscripciones en ese OPML');
-
-    const folders = new Map(db.listFolders().map((f) => [f.name.toLowerCase(), f.id]));
-    const existing = new Set(db.listFeeds().map((f) => f.url));
-    const added = [];
-
-    for (const entry of entries) {
-      if (existing.has(entry.url)) continue;
-      let folderId = null;
-      if (entry.folder) {
-        const key = entry.folder.toLowerCase();
-        if (!folders.has(key)) folders.set(key, db.createFolder(entry.folder).id);
-        folderId = folders.get(key);
-      }
-      try {
-        added.push(db.createFeed({ url: entry.url, title: entry.title, folderId }));
-      } catch (err) {
-        console.error(`  ✗ ${entry.url} — ${err.message}`);
-      }
-    }
+    const { entries, added, failed } = stageOpml(db, await readFile(args[0], 'utf8'));
+    for (const f of failed) console.error(`  ✗ ${f.url} — ${f.error}`);
 
     console.log(`${added.length} feeds nuevos de ${entries.length} en el archivo. Bajando…`);
     let ok = 0;

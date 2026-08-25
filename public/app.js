@@ -661,9 +661,20 @@ function icon(paths) {
     .join('')}</svg>`;
 }
 
+/* El tema arranca en boot.js, que corre antes de pintar. Acá solo se cambia. */
+const THEME_KEY = 'unrsschiquito.theme';
+const GRAY_KEY = 'unrsschiquito.gray';
+
+const browserTheme = () =>
+  matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+
 function renderTheme() {
   const { theme, gray } = document.documentElement.dataset;
-  $('#theme-toggle').innerHTML = icon(theme === 'dark' ? ICON_MOON : ICON_SUN);
+  const toggle = $('#theme-toggle');
+  toggle.innerHTML = icon(theme === 'dark' ? ICON_MOON : ICON_SUN);
+  toggle.title = localStorage.getItem(THEME_KEY)
+    ? 'Cambiar tema'
+    : 'Cambiar tema (ahora sigue al navegador)';
   $('#gray-toggle').innerHTML = icon(gray === 'on' ? ICON_EYE_OFF : ICON_EYE);
 }
 
@@ -977,6 +988,79 @@ async function folderMenu(id) {
   }
 }
 
+async function importOpmlFile(file) {
+  let xml;
+  try {
+    xml = await file.text();
+  } catch {
+    return toast('No se pudo leer el archivo');
+  }
+  if (!xml.trim()) return toast('Ese archivo está vacío');
+
+  toast('Importando… esto baja los feeds nuevos, puede tardar', 120000);
+
+  let payload;
+  try {
+    payload = await api.importOpml(xml);
+  } catch (err) {
+    return toast(err.message);
+  }
+
+  applySnapshot(payload);
+  await loadItems({ reset: true });
+
+  const { imported = 0, found = 0, failed = 0 } = payload;
+  if (!imported) return toast(found ? 'Ya tenías todos esos feeds' : 'No encontré suscripciones ahí');
+  const plural = imported > 1 ? 's' : '';
+  toast(`${imported} feed${plural} importado${plural}${failed ? `, ${failed} con error` : ''}`);
+}
+
+function wireMoreMenu() {
+  const btn = $('#more-toggle');
+  const list = $('#more-list');
+  const file = $('#opml-file');
+
+  const onOutside = (e) => { if (!e.target.closest('#more-menu')) close(); };
+  const onKey = (e) => {
+    if (e.key !== 'Escape') return;
+    e.stopPropagation();
+    close();
+    btn.focus();
+  };
+
+  const open = () => {
+    list.hidden = false;
+    btn.setAttribute('aria-expanded', 'true');
+    document.addEventListener('click', onOutside, true);
+    document.addEventListener('keydown', onKey, true);
+    $('[data-act]', list)?.focus();
+  };
+
+  const close = () => {
+    if (list.hidden) return;
+    list.hidden = true;
+    btn.setAttribute('aria-expanded', 'false');
+    document.removeEventListener('click', onOutside, true);
+    document.removeEventListener('keydown', onKey, true);
+  };
+
+  btn.onclick = () => (list.hidden ? open() : close());
+  list.onclick = (e) => {
+    const act = e.target.closest('[data-act]')?.dataset.act;
+    if (!act) return;
+    close();
+    // El content-disposition del server hace la descarga, no hace falta un <a>.
+    if (act === 'export') window.location.href = '/api/opml';
+    if (act === 'import') file.click();
+  };
+
+  file.onchange = () => {
+    const chosen = file.files?.[0];
+    file.value = '';   // así se puede volver a elegir el mismo archivo
+    if (chosen) importOpmlFile(chosen);
+  };
+}
+
 function scrollItemIntoView(id) {
   $(`.item[data-id="${id}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 }
@@ -1023,16 +1107,23 @@ function wireEvents() {
   $('#theme-toggle').onclick = () => {
     const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
     document.documentElement.dataset.theme = next;
-    localStorage.setItem('unrsschiquito.theme', next);
+    // Si elegís lo mismo que ya dice el navegador, borramos la preferencia en
+    // vez de guardarla: así el tema vuelve a seguir al sistema solo.
+    if (next === browserTheme()) localStorage.removeItem(THEME_KEY);
+    else localStorage.setItem(THEME_KEY, next);
     renderTheme();
   };
 
   $('#gray-toggle').onclick = () => {
     const next = document.documentElement.dataset.gray === 'on' ? 'off' : 'on';
     document.documentElement.dataset.gray = next;
-    localStorage.setItem('unrsschiquito.gray', next);
+    localStorage.setItem(GRAY_KEY, next);
     renderTheme();
   };
+
+  window.addEventListener('themechange', renderTheme);
+
+  wireMoreMenu();
 
   $('#menu-toggle').onclick = () => {
     const app = $('#app');
@@ -1082,7 +1173,8 @@ function wireEvents() {
 
   document.addEventListener('keydown', (e) => {
     if (!$('#modal').hidden) return;
-    const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
+    if (!$('#more-list').hidden) return;
+    const typing =/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
     if (e.key === 'Escape' && typing) return e.target.blur();
     if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
 

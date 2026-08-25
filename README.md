@@ -47,6 +47,7 @@ lib/
   opml.js          importar y exportar suscripciones
 public/
   index.html       cáscara: panel, lista, lector, modal
+  boot.js          tema y modo sin color antes del primer pintado
   styles.css       única hoja: brutalismo web, serif, claro/oscuro, responsive
   app.js           toda la lógica del cliente
   api.js           el único archivo del cliente que sabe del servidor
@@ -99,7 +100,8 @@ node server.js export > feeds.opml # exporta las tuyas
 ```
 
 En Docker, adelante va `docker compose exec unrsschiquito`. Desde la interfaz,
-"Exportar" en el pie del panel baja el mismo OPML.
+el menú "Más" en el pie del panel hace lo mismo: "Exportar OPML" baja el archivo
+e "Importar OPML" te deja elegir uno del disco.
 
 Backup: unrsschiquito.db
 
