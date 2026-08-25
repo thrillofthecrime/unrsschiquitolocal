@@ -207,11 +207,11 @@ function enhanceSelects(root) {
   $$('select', root).forEach(enhanceSelect);
 }
 
-function askText({ title, label, value = '', confirmLabel = 'Guardar', placeholder = '' }) {
+function askText({ title, label, value = '', confirmLabel = 'Guardar' }) {
   return openModal((card, close) => {
     card.innerHTML = `
       <h2 class="modal-title">${esc(title)}</h2>
-      <label>${esc(label)}<input type="text" id="ask" value="${esc(value)}" placeholder="${esc(placeholder)}"></label>
+      <label>${esc(label)}<input type="text" id="ask" value="${esc(value)}"></label>
       <div class="actions">
         <button class="btn" data-act="cancel">Cancelar</button>
         <button class="btn primary" data-act="ok">${esc(confirmLabel)}</button>
@@ -224,14 +224,14 @@ function askText({ title, label, value = '', confirmLabel = 'Guardar', placehold
   });
 }
 
-function askConfirm({ title, message, confirmLabel = 'Eliminar' }) {
+function askConfirm({ title, message }) {
   return openModal((card, close) => {
     card.innerHTML = `
       <h2 class="modal-title">${esc(title)}</h2>
       <p class="muted" style="margin:0">${esc(message)}</p>
       <div class="actions">
         <button class="btn" data-act="cancel">Cancelar</button>
-        <button class="btn primary" data-act="ok">${esc(confirmLabel)}</button>
+        <button class="btn primary" data-act="ok">Eliminar</button>
       </div>`;
     $('[data-act=ok]', card).onclick = () => close(true);
     $('[data-act=cancel]', card).onclick = () => close(false);
@@ -362,12 +362,11 @@ async function loadSidebar() {
   }
 }
 
-function feedIdsForView() {
-  if (state.view.type === 'feed') return [state.view.id];
-  if (state.view.type === 'folder') {
-    return state.feeds.filter((f) => f.folder_id === state.view.id).map((f) => f.id);
-  }
-  return null; // todos
+function feedsForView() {
+  const { type, id } = state.view;
+  if (type === 'feed') return state.feeds.filter((f) => f.id === id);
+  if (type === 'folder') return state.feeds.filter((f) => f.folder_id === id);
+  return state.feeds;
 }
 
 let loadSeq = 0;
@@ -447,7 +446,7 @@ function readerHtml(item) {
   if (text) {
     body = sanitize(text);
   } else if (text === undefined) {
-    body = '<p class="muted">Cargando…</p>';   
+    body = '<p class="muted">Cargando…</p>';
   } else {
     body = `${item.summary ? `<p>${esc(item.summary)}</p>` : ''}
        <p class="muted">Este feed no trae el texto completo. Probá “Actualizar” acá
@@ -639,11 +638,6 @@ async function refreshArticle() {
     btn.disabled = false;
     btn.textContent = 'Actualizar';
   }
-}
-
-function feedsForView() {
-  const ids = feedIdsForView();
-  return ids ? state.feeds.filter((f) => ids.includes(f.id)) : state.feeds;
 }
 
 const ICON_SUN = ['M17.5 17.5L19 19M20 12H22M6.5 6.5L5 5M17.5 6.5L19 5M6.5 17.5L5 19M2 12H4M12 2V4M12 20V22M16 12C16 14.2091 14.2091 16 12 16C9.79086 16 8 14.2091 8 12C8 9.79086 9.79086 8 12 8C14.2091 8 16 9.79086 16 12Z'];
@@ -1174,7 +1168,7 @@ function wireEvents() {
   document.addEventListener('keydown', (e) => {
     if (!$('#modal').hidden) return;
     if (!$('#more-list').hidden) return;
-    const typing =/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
+    const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
     if (e.key === 'Escape' && typing) return e.target.blur();
     if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
 
@@ -1201,7 +1195,6 @@ function wireEvents() {
     }
   });
 }
-
 
 async function main() {
   renderTheme();
